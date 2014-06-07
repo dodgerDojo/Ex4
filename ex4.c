@@ -1,6 +1,7 @@
 //TODO:
 //1. name and stuff
 //2. return error check
+//3. read again definition of thread creation, mutex creation, etc.
 /********************************/
 
 // Includes:
@@ -55,6 +56,7 @@ static char *FILE_LIST[] = {CREATION_COST_FILE, \
 
 static pthread_t Thread_Ids[NUM_OF_FILES];
 static float product_total_cost;
+static pthread_mutex_t lock;
 
 /********************************/
 
@@ -111,14 +113,10 @@ static void* readCostAndUpdateTotal(void *arg)
     int line_number = p_data->line_number;
     const char *p_file_name = p_data->file_name;
 
-    printf("got %s at line %d\n Float read: %f \n", p_file_name, line_number, readFloat(p_file_name, line_number));
-
-    /*pthread_mutex_lock(&lock);
-
-    for(i=0; i<1000000;i++)
-        counter++;
-
-    pthread_mutex_unlock(&lock);*/
+    pthread_mutex_lock(&lock);
+    printf("Added: %f\n", readFloat(p_file_name, line_number));
+    product_total_cost += readFloat(p_file_name, line_number);
+    pthread_mutex_unlock(&lock);
 
     return NULL;
 }
@@ -139,6 +137,8 @@ static float getProductTotalCost(int line_number)
 
     initFileList(file_datas);
 
+    product_total_cost = 0;
+
     for(i = 0; i < NUM_OF_FILES; i++)
     {
         file_datas[i].line_number = line_number;
@@ -154,6 +154,8 @@ static float getProductTotalCost(int line_number)
     {
         pthread_join(Thread_Ids[i], NULL);
     }
+
+    return product_total_cost;
 }
 
 /********************************/
@@ -179,9 +181,8 @@ int main(int argc, char *argv[])
 
     for(product_line = 1; product_line <= num_of_products; ++product_line)
     {
-        getProductTotalCost(product_line);
-        //float product_price = getProductTotalCost(product_line);
-        //printf("Total Price: %f\n");
+        float product_price = getProductTotalCost(product_line);
+        printf("Total Price: %f\n", product_price);
     }
 
     printf("ended.\n");
