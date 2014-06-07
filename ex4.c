@@ -1,7 +1,3 @@
-//TODO:
-//1. name and stuff
-//2. return error check
-//3. read again definition of thread creation, mutex creation, etc.
 /********************************/
 
 // Includes:
@@ -29,10 +25,13 @@
 #define EXIT_ERROR_CODE     (-1)
 #define EXIT_OK_CODE        (0)
 
-#define NOF_INPUTS_ERROR     ("wrong number of inputs.\n")
-#define FOPEN_ERROR          ("fopen() failed.\n")
-#define FCLOSE_ERROR         ("fclose() failed.\n")
-#define PTHREAD_CREATE_ERROR ("pthread_create() failed.\n")
+#define NOF_INPUTS_ERROR       ("wrong number of inputs.\n")
+#define FOPEN_ERROR            ("fopen() failed.\n")
+#define FCLOSE_ERROR           ("fclose() failed.\n")
+#define PTHREAD_CREATE_ERROR   ("pthread_create() failed.\n")
+#define PTHREAD_JOIN_FAILED    ("pthread_join() failed.\n")
+#define PTHREAD_MLOCK_FAILED   ("pthread_mutex_lock() failed.\n")
+#define PTHREAD_MUNLOCK_FAILED ("pthread_mutex_unlock() failed.\n")
 
 /********************************/
 
@@ -69,6 +68,9 @@ static void* readCostAndUpdateTotal(void *arg);
 static void initFileList(FILENAME_AND_LINE_NO *p_file_datas);
 
 static float getProductTotalCost(int line_number);
+
+static void PriceStrategy1(int product_num, float product_total_cost);
+static void PriceStrategy2(int product_num, float product_total_cost);
 
 /********************************/
 
@@ -113,10 +115,19 @@ static void* readCostAndUpdateTotal(void *arg)
     int line_number = p_data->line_number;
     const char *p_file_name = p_data->file_name;
 
-    pthread_mutex_lock(&lock);
-    printf("Added: %f\n", readFloat(p_file_name, line_number));
+    if(pthread_mutex_lock(&lock) != 0)
+    {
+        write(STDERR_FILENO, PTHREAD_MLOCK_FAILED, sizeof(PTHREAD_MLOCK_FAILED));
+        exit(EXIT_ERROR_CODE);  
+    }
+
     product_total_cost += readFloat(p_file_name, line_number);
-    pthread_mutex_unlock(&lock);
+
+    if(pthread_mutex_unlock(&lock) != 0)
+    {
+        write(STDERR_FILENO, PTHREAD_MUNLOCK_FAILED, sizeof(PTHREAD_MUNLOCK_FAILED));
+        exit(EXIT_ERROR_CODE);  
+    }
 
     return NULL;
 }
@@ -152,10 +163,24 @@ static float getProductTotalCost(int line_number)
     
     for(i = 0; i < NUM_OF_FILES; i++)
     {
-        pthread_join(Thread_Ids[i], NULL);
+        if(pthread_join(Thread_Ids[i], NULL) != 0)
+        {
+            write(STDERR_FILENO, PTHREAD_JOIN_FAILED, sizeof(PTHREAD_JOIN_FAILED));
+            exit(EXIT_ERROR_CODE);           
+        }
     }
 
     return product_total_cost;
+}
+
+static void PriceStrategy1(int product_num, float product_total_cost)
+{
+    printf("Product: %d, Strategy: 1, Price: %f\n", product_num, product_total_cost);
+}
+
+static void PriceStrategy2(int product_num, float product_total_cost)
+{
+    printf("Product: %d, Strategy: 2, Price: %f\n", product_num, product_total_cost);
 }
 
 /********************************/
@@ -182,10 +207,9 @@ int main(int argc, char *argv[])
     for(product_line = 1; product_line <= num_of_products; ++product_line)
     {
         float product_price = getProductTotalCost(product_line);
-        printf("Total Price: %f\n", product_price);
+        PriceStrategy1(product_line, product_price);
+        PriceStrategy2(product_line, product_price);
     }
-
-    printf("ended.\n");
 
     return EXIT_OK_CODE;
 }
