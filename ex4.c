@@ -47,13 +47,13 @@ typedef struct
 
 // Static Variables:
 
-static char *file_list[] = {CREATION_COST_FILE, \
+static char *FILE_LIST[] = {CREATION_COST_FILE, \
                             DELIVERY_COST_FILE, \
                             PACKAGING_COST_FILE, \
                             PAINT_COST_FILE, \
                             QA_COST_FILE};
 
-static pthread_t tid[NUM_OF_FILES];
+static pthread_t Thread_Ids[NUM_OF_FILES];
 static float product_total_cost;
 
 /********************************/
@@ -62,7 +62,11 @@ static float product_total_cost;
 
 static float readFloat(char const *p_file_name, int num_of_line);
 
-void* readCostAndUpdateTotal(void *arg);
+static void* readCostAndUpdateTotal(void *arg);
+
+static void initFileList(FILENAME_AND_LINE_NO *p_file_datas);
+
+static float getProductTotalCost(int line_number);
 
 /********************************/
 
@@ -101,13 +105,13 @@ static float readFloat(char const *p_file_name, int num_of_line)
     return atof(line);
 }
 
-void* readCostAndUpdateTotal(void *arg)
+static void* readCostAndUpdateTotal(void *arg)
 {
     FILENAME_AND_LINE_NO *p_data = (FILENAME_AND_LINE_NO *)arg;
     int line_number = p_data->line_number;
     const char *p_file_name = p_data->file_name;
 
-    printf("got %s at line %d\n", p_file_name, line_number);
+    printf("got %s at line %d\n Float read: %f \n", p_file_name, line_number, readFloat(p_file_name, line_number));
 
     /*pthread_mutex_lock(&lock);
 
@@ -119,6 +123,39 @@ void* readCostAndUpdateTotal(void *arg)
     return NULL;
 }
 
+static void initFileList(FILENAME_AND_LINE_NO *p_file_datas)
+{
+    int file_num = 0;
+    for(file_num = 0; file_num < NUM_OF_FILES; file_num++)
+    {
+        p_file_datas[file_num].file_name = FILE_LIST[file_num];
+    }
+}
+
+static float getProductTotalCost(int line_number)
+{
+    int i = 0;
+    FILENAME_AND_LINE_NO file_datas[NUM_OF_FILES] = {0};
+
+    initFileList(file_datas);
+
+    for(i = 0; i < NUM_OF_FILES; i++)
+    {
+        file_datas[i].line_number = line_number;
+
+        if(pthread_create(&(Thread_Ids[i]), NULL, &readCostAndUpdateTotal, (void *)&(file_datas[i])) != 0)
+        {
+            write(STDERR_FILENO, PTHREAD_CREATE_ERROR, sizeof(PTHREAD_CREATE_ERROR));
+            exit(EXIT_ERROR_CODE);
+        }
+    }
+    
+    for(i = 0; i < NUM_OF_FILES; i++)
+    {
+        pthread_join(Thread_Ids[i], NULL);
+    }
+}
+
 /********************************/
 
 // Main:
@@ -128,9 +165,7 @@ int main(int argc, char *argv[])
     const unsigned int EXPECTED_ARGC = 2;
     const unsigned int ARGV_INDEX_NUM_OF_PRODECTS = 1;
 
-    int num_of_products = 0, i = 0;
-
-    FILENAME_AND_LINE_NO file_datas[NUM_OF_FILES] = {0};
+    int num_of_products = 0, product_line = 0;
 
     // Check the amount of arguments.
     if(argc != EXPECTED_ARGC)
@@ -140,22 +175,13 @@ int main(int argc, char *argv[])
         exit(EXIT_ERROR_CODE);
     }
 
-    for(i = 0; i < NUM_OF_FILES; i++)
-    {
-        file_datas[i].file_name = file_list[i];
-        file_datas[i].line_number = i*2;
+    num_of_products = atoi(argv[ARGV_INDEX_NUM_OF_PRODECTS]);
 
-        if(pthread_create(&(tid[i]), NULL, &readCostAndUpdateTotal, (void *)&(file_datas[i])) != 0)
-        {
-            write(STDERR_FILENO, PTHREAD_CREATE_ERROR, sizeof(PTHREAD_CREATE_ERROR));
-            exit(EXIT_ERROR_CODE);
-        }
-    }
-
-    
-    for(i = 0; i < NUM_OF_FILES; i++)
+    for(product_line = 1; product_line <= num_of_products; ++product_line)
     {
-        pthread_join(tid[i], NULL);
+        getProductTotalCost(product_line);
+        //float product_price = getProductTotalCost(product_line);
+        //printf("Total Price: %f\n");
     }
 
     printf("ended.\n");
